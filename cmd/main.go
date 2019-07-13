@@ -21,7 +21,7 @@ func main() {
 		server.Shutdown()
 	}()
 
-	err := server.ListenAndServe(":4444")
+	err := server.ListenAndServe("localhost:4444")
 
 	if err != nil {
 		fmt.Println(err)

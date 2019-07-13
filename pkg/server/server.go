@@ -11,17 +11,39 @@ import (
 // ErrServerClosed 服务已关闭
 var ErrServerClosed = errors.New("Server closed")
 
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		// 目前换成长度最大4K，以后写别的服务再说
+		return make([]byte, 4*1024)
+	},
+}
+
 type conn struct {
 	rwc net.Conn
 }
 
 func (c *conn) serve(ctx context.Context, done func()) {
+	buf := bufPool.Get().([]byte)
+	defer bufPool.Put(buf)
 	for {
 		select {
 		case <-ctx.Done():
 			done()
 			return
 		default:
+		}
+		n, err := c.rwc.Read(buf)
+
+		if err != nil {
+			c.rwc.Close()
+			return
+		}
+
+		n, err = c.rwc.Write(buf[:n])
+
+		if err != nil {
+			c.rwc.Close()
+			return
 		}
 	}
 }
@@ -82,6 +104,8 @@ func (s *Server) Serve(l *net.TCPListener) error {
 			}
 			return err
 		}
+		// end 错误处理
+
 		tempDelay = 0
 		c := s.newConn(rwc)
 		s.waitGroup.Add(1)
