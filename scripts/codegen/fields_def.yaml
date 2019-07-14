@@ -1,0 +1,133 @@
+fields:
+  - id: 2
+    type: llnum
+    length: 19
+    description: Primary Account Number
+  - id: 3
+    type: num
+    length: 6
+    description: Processing Code
+  - id: 4
+    type: num
+    length: 12
+    description: Amount, Transaction
+  - id: 11
+    type: num
+    length: 6
+    description: System Trace Audit Number
+  - id: 12
+    type: num
+    length: 6
+    description: Time, Local Transaction
+  - id: 13
+    type: num
+    length: 4
+    description: Date, Local Transaction
+  - id: 14
+    type: num
+    length: 4
+    description: Date, Expiration
+  - id: 15
+    type: num
+    length: 4
+    description: Date, Settlement
+  - id: 22
+    type: num
+    length: 3
+    description: Point Of Service Entry Mode Code
+  - id: 23
+    type: num
+    length: 3
+    description: Card Sequence Number
+  - id: 25
+    type: num
+    length: 2
+    description: Point Of Service Condition Code
+  - id: 26
+    type: num
+    length: 2
+    description: Point Of Service PIN Capture Code
+  - id: 32
+    type: llnum
+    length: 11
+    description: Acquiring Institution Identification Code
+  - id: 35
+    type: llnum
+    length: 37
+    description: Track 2 data
+  - id: 36
+    type: lllnum
+    length: 104
+    description: Track 3 Data
+  - id: 37
+    type: char
+    length: 12
+    description: Retrieval Reference Number
+  - id: 38
+    type: char
+    length: 6
+    description: Authorization Identification Response
+  - id: 39
+    type: char
+    length: 2
+    description: Response Code
+  - id: 41
+    type: char
+    length: 8
+    description: Card Acceptor Terminal Identification
+  - id: 42
+    type: char
+    length: 15
+    description: Card Acceptor Identification Code
+  - id: 44
+    type: llchar
+    length: 25
+    description: Additional Response Data
+  - id: 48
+    type: lllnum
+    length: 512
+    description: ADITIONAL DATA - PRIVATE
+  - id: 49
+    type: char
+    length: 3
+    description: Currency Code, Transaction
+  - id: 52
+    type: byte
+    length: 8
+    description: Pin Data
+  - id: 53
+    type: num
+    length: 16
+    description: Security Related Control Information
+  - id: 54
+    type: lllchar
+    length: 20
+    description: Additional Amounts
+  - id: 55
+    type: lllbyte
+    length: 255
+    description: Integrated Circuit Card（ICC）System Related Data
+  - id: 58
+    type: lllchar
+    length: 100
+    description: IC(PBOC) Data Reserved
+  - id: 60
+    type: lllnum
+    length: 17
+    description: Reserved
+  - id: 61
+    type: lllnum
+    length: 29
+    description: Cardholder Authentication Information
+  - id: 62
+    type: lllbyte
+    length: 512
+    description: Switching Data
+  - id: 63
+    type: lllchar
+    length: 163
+    description: Finacial Network Data
+  - id: 64
+    type: byte
+    length: 8
+    description: Message Authentication Code
