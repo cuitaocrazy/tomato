@@ -1,11 +1,17 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ErrServerClosed 服务已关闭
@@ -18,33 +24,80 @@ var bufPool = sync.Pool{
 	},
 }
 
-type conn struct {
-	rwc net.Conn
+var pkgBufPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
 }
 
-func (c *conn) serve(ctx context.Context, done func()) {
+func pkgSplit(data []byte) (advence int, token []byte, err error) {
+	if len(data) >= 4 {
+		pkgLen := int(binary.BigEndian.Uint32(data[:4]))
+		if len(data) >= 4+pkgLen {
+			return 4 + pkgLen, data[4 : 4+pkgLen], nil
+		}
+	}
+
+	return 0, nil, nil
+}
+
+func connServe(ctx context.Context, conn net.Conn, done func()) {
 	buf := bufPool.Get().([]byte)
 	defer bufPool.Put(buf)
+	defer done()
+
+	t := buf
+	needRead := true
+	readableCount := 0
+
 	for {
-		select {
-		case <-ctx.Done():
-			done()
-			return
-		default:
+		if needRead {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			conn.SetReadDeadline(time.Now().Add(1 * 1e9))
+			n, err := conn.Read(t[readableCount:])
+			if err != nil {
+				if ne, ok := err.(net.Error); ok {
+					if ne.Timeout() {
+						continue
+					}
+				}
+
+				if err == io.EOF {
+					return
+				}
+				// TODO log err
+				log.Error(err)
+				return
+			}
+			readableCount += n
 		}
-		n, err := c.rwc.Read(buf)
+
+		advence, pkg, err := pkgSplit(t[:readableCount])
 
 		if err != nil {
-			c.rwc.Close()
 			return
 		}
 
-		n, err = c.rwc.Write(buf[:n])
-
-		if err != nil {
-			c.rwc.Close()
-			return
+		if pkg != nil {
+			t = t[advence:]
+			readableCount -= advence
+			// todo
+			println(hex.EncodeToString(pkg))
+			b, _ := hex.DecodeString("00000003313233")
+			conn.Write(b)
+			needRead = false
+			continue
 		}
+
+		if readableCount != 0 {
+			copy(buf, t[:readableCount])
+		}
+		t = buf
+		needRead = true
 	}
 }
 
@@ -59,11 +112,6 @@ func (s *Server) getCloseChan() <-chan struct{} {
 		s.closeChan = make(chan struct{})
 	}
 	return s.closeChan
-}
-
-func (s *Server) newConn(rwc net.Conn) *conn {
-	c := &conn{rwc}
-	return c
 }
 
 // Serve TODO
@@ -107,10 +155,10 @@ func (s *Server) Serve(l *net.TCPListener) error {
 		// end 错误处理
 
 		tempDelay = 0
-		c := s.newConn(rwc)
 		s.waitGroup.Add(1)
-		go c.serve(ctx, func() {
+		go connServe(ctx, rwc, func() {
 			s.waitGroup.Done()
+			rwc.Close()
 		})
 	}
 }

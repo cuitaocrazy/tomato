@@ -9,7 +9,8 @@ import (
 // ErrPkg TODO
 var ErrPkg = errors.New("Package error")
 
-// PospPkgSplit TODO
+// PospPkgSplit POSP8583包分割器
+// 由于Scanner不支持net.Conn的读取超时处理，现在弃用
 func PospPkgSplit(data []byte, atEOF bool) (advence int, token []byte, err error) {
 	if len(data) > 4 {
 		pkgLen := int(binary.BigEndian.Uint32(data[:4]))
