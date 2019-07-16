@@ -73,5 +73,3 @@ convertObj.fields = obj.fields.map(f => ({
 const template = handlebars.compile(fs.readFileSync('./templates/my.handlebars.go').toString())
 
 fs.writeFileSync('./a.go', template(convertObj))
-
-console.log(convertObj)
