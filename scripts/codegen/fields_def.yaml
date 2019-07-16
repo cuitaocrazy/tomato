@@ -2,132 +2,262 @@ fields:
   - id: 2
     type: llnum
     length: 19
+    name: pan
     description: Primary Account Number
   - id: 3
     type: num
     length: 6
+    name: proc code
     description: Processing Code
   - id: 4
     type: num
     length: 12
+    name: amt
     description: Amount, Transaction
+  - id: 5
+    type: num
+    length: 12
+    name: sttlement amt
+    description: Amount, Sttlement
+  - id: 6
+    type: num
+    length: 12
+    name: cardholder billing amt
+    description: Amount, Cardholder Billing
+  - id: 7
+    type: num
+    length: 10
+    name: transmission datetime
+    description: Transmission  Date and Time
+  - id: 9
+    type: num
+    length: 8
+    name: settlement conversion rate
+    description: Conversion Rate, Settlement
+  - id: 10
+    type: num
+    length: 8
+    name: cardholder billing conversion rate
+    description: Conversion Rate, Cardholder Billing
   - id: 11
     type: num
     length: 6
+    name: trace no
     description: System Trace Audit Number
   - id: 12
     type: num
     length: 6
+    name: local time
     description: Time, Local Transaction
   - id: 13
     type: num
     length: 4
+    name: local date
     description: Date, Local Transaction
   - id: 14
     type: num
     length: 4
+    name: expiry date
     description: Date, Expiration
   - id: 15
     type: num
     length: 4
+    name: settlement date
     description: Date, Settlement
+  - id: 16
+    type: num
+    length: 4
+    name: conversion date
+    description: Date, Conversion
+  - id: 17
+    type: num
+    length: 4
+    name: capture date
+    description: Date, Capture
+  - id: 18
+    type: num
+    length: 4
+    name: mer type
+    description: Merchant Type
   - id: 22
     type: num
     length: 3
+    name: pos entry mode
     description: Point Of Service Entry Mode Code
   - id: 23
     type: num
     length: 3
+    name: seq no
     description: Card Sequence Number
+  - id: 24
+    type: num
+    length: 3
+    name: internetwork id
+    description: 国际网络标识
   - id: 25
     type: num
     length: 2
+    name: pos condition code
     description: Point Of Service Condition Code
-  - id: 26
-    type: num
-    length: 2
-    description: Point Of Service PIN Capture Code
+  - id: 28
+    type: char
+    length: 9
+    name: trans fee
+    description: Amount, Transaction Fee
   - id: 32
     type: llnum
     length: 11
+    name: acq inst id
     description: Acquiring Institution Identification Code
-  - id: 35
+  - id: 33
     type: llnum
+    length: 11
+    name: forwarding inst id
+    description: Forwarding Institution Identification Code
+  - id: 34
+    type: llchar
+    length: 28
+    name: pan extend
+    description: Primary Account Number, Extended
+  - id: 35
+    type: llchar # ??????
     length: 37
+    name: track 2 data
     description: Track 2 data
   - id: 36
-    type: lllnum
+    type: lllchar # ?????
     length: 104
+    name: track 3 data
     description: Track 3 Data
   - id: 37
     type: char
     length: 12
+    name: ref no
     description: Retrieval Reference Number
   - id: 38
     type: char
     length: 6
+    name: auth code
     description: Authorization Identification Response
   - id: 39
     type: char
     length: 2
+    name: resp code
     description: Response Code
   - id: 41
     type: char
     length: 8
+    name: term id
     description: Card Acceptor Terminal Identification
   - id: 42
     type: char
     length: 15
+    name: mer id
     description: Card Acceptor Identification Code
+  - id: 43
+    type: char
+    length: 40
+    name: mer name
+    description: Card Acceptor Name / Location
   - id: 44
     type: llchar
     length: 25
+    name: additional data
     description: Additional Response Data
   - id: 48
-    type: lllnum
-    length: 512
+    type: lllbyte
+    length: 999
+    name: private additional data
     description: ADITIONAL DATA - PRIVATE
   - id: 49
-    type: char
+    type: num
     length: 3
+    name: trans currency code
     description: Currency Code, Transaction
+  - id: 50
+    type: num
+    length: 3
+    name: settlement currency code
+    description: Currency COde, Settlement
+  - id: 51
+    type: num
+    length: 3
+    name: cardholder billing currency code
+    description: Currency Code, Cardholder Billing
   - id: 52
     type: byte
     length: 8
-    description: Pin Data
+    name: pin data
+    description: Personal Id Number (PIN) Data
   - id: 53
-    type: num
+    type: char # ??????
     length: 16
+    name: security related control info
     description: Security Related Control Information
   - id: 54
     type: lllchar
-    length: 20
+    length: 120
+    name: additional amt
     description: Additional Amounts
   - id: 55
     type: lllbyte
     length: 255
+    name: icc trans data
     description: Integrated Circuit Card（ICC）System Related Data
+  - id: 56
+    type: lllbyte
+    length: 999
+    name: result data
+    description: TC 结果、发卡行脚本结果、下装 EMV 参数相关数据及其它
+  - id: 57
+    type: lllbyte
+    length: 999
+    name: pos info resp
+    description: Response, POS Infomation
   - id: 58
-    type: lllchar
-    length: 100
-    description: IC(PBOC) Data Reserved
+    type: lllbyte
+    length: 900
+    name: elec sign
+    description: Electronic Signature Infomation
+  - id: 59
+    type: lllbyte
+    length: 999
+    name: biz trait
+    description: 业务特征要素
   - id: 60
-    type: lllnum
-    length: 17
-    description: Reserved
+    type: lllbyte
+    length: 999
+    name: pos info req
+    description: 附加 POS 信息域
   - id: 61
-    type: lllnum
-    length: 29
-    description: Cardholder Authentication Information
+    type: lllbyte
+    length: 999
+    name: customize61
+    description: Customize 61
   - id: 62
     type: lllbyte
-    length: 512
-    description: Switching Data
+    length: 999
+    name: customize62
+    description: Customize 62
   - id: 63
-    type: lllchar
-    length: 163
-    description: Finacial Network Data
+    type: lllbyte
+    length: 999
+    name: customize63
+    description: Customize 63
   - id: 64
     type: byte
     length: 8
+    name: mac
     description: Message Authentication Code
+
+# 参考http://www.inispo.com/iso-mti-codes/ 1987部分和posp文档
+trans:
+  - name: Authorization Request
+    req:
+      description: Acquirer Send Authorization Request Message to Issuer
+      required: [2, 3, 4, 11, 22, 24, 25, 41, 42, 49, 61]
+      conditionRequired: [14, 23, 35, 36, 48, 52, 55, 56, 59, 64]
+    res:
+      description: Issuer Send Authorization Request Response Message back to Acquirer
+      required: [2, 3, 4, 11, 12, 13, 24, 25, 37, 39, 41, 42, 49, 61]
+      conditionRequired: [38, 44, 48, 55, 56, 64]
