@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -20,9 +21,16 @@ var ErrFieldPackFuncNotExist = errors.New("field pack function not exist")
 //ErrBCD bcd错误
 var ErrBCD = errors.New("BCD error")
 
+// ErrValueTooLong 值的长度过长
 var ErrValueTooLong = errors.New("value too long")
+
+// ErrValueTooSmall 值的长度过短
 var ErrValueTooSmall = errors.New("value too small")
+
+// ErrFieldNotFound 没有找到域定义
 var ErrFieldNotFound = errors.New("field not found")
+
+// ErrPackDataTooSmall 报数据过短
 var ErrPackDataTooSmall = errors.New("package data too small")
 
 // #region unpack
@@ -57,26 +65,19 @@ func getBytesBCD(data []byte) (int, error) {
 }
 
 func getBytesSlice(length int, data *bytes.Buffer) ([]byte, error) {
-	ret := make([]byte, length)
-	n, err := data.Read(ret)
-
-	if err != nil {
-		return nil, err
+	if data.Len() < length {
+		return nil, ErrPackDataTooSmall
 	}
 
-	if n < length {
-		return nil, ErrValueTooSmall
-	}
-
-	return ret, nil
+	return append([]byte{}, data.Next(length)...), nil
 }
 
-func unpackVarLenFiled(lenType int, maxLen int, data *bytes.Buffer) ([]byte, error) {
-	rawLen, err := getBytesSlice(lenType/2+lenType%2, data)
-
-	if err != nil {
-		return nil, err
+func unpackVarLenFiled(lenByteCount int, maxLen int, data *bytes.Buffer) ([]byte, error) {
+	if data.Len() < lenByteCount {
+		return nil, ErrPackDataTooSmall
 	}
+
+	rawLen := data.Next(lenByteCount)
 
 	fieldLength, err := getBytesBCD(rawLen)
 
@@ -137,14 +138,13 @@ func packString(byteLen int, data []byte, buf *bytes.Buffer) error {
 	return nil
 }
 
-func packVarLenField(lenSize int, maxLen int, data []byte, buf *bytes.Buffer) error {
+func packVarLenField(lenByteCount int, maxLen int, data []byte, buf *bytes.Buffer) error {
 	if len(data) > maxLen {
 		return ErrValueTooLong
 	}
-	lenBufSize := lenSize/2 + lenSize%2
-	lenBuf := make([]byte, lenBufSize)
+	lenBuf := make([]byte, lenByteCount)
 	dataLen := len(data)
-	for i := lenBufSize - 1; i >= 0; i-- {
+	for i := lenByteCount - 1; i >= 0; i-- {
 		var t int
 		dataLen, t = dataLen/100, dataLen%100
 		lenBuf[i] = byte(((t / 10) << 4) | (t % 10))
@@ -157,7 +157,7 @@ func packVarLenField(lenSize int, maxLen int, data []byte, buf *bytes.Buffer) er
 
 // #endregion
 
-func getBitMapArray(bitmap []byte) (fieldIndex []int) {
+func getBitmapIndex(bitmap []byte) (fieldIndex []int) {
 	for i, b := range bitmap {
 		for j := byte(0); j < 8; j++ {
 			if (0x80>>j)&b != 0 {
@@ -166,6 +166,15 @@ func getBitMapArray(bitmap []byte) (fieldIndex []int) {
 		}
 	}
 	return
+}
+
+func getBitmap(fieldIndex []int) []byte {
+	ret := make([]byte, 8)
+	for _, i := range fieldIndex {
+		bi, bo := (i-1)/8, (i-1)%8
+		ret[bi] = ret[bi] | (0x80 >> byte(bo))
+	}
+	return ret
 }
 
 // 解包函数
@@ -233,9 +242,22 @@ func (fvm FieldValueMap) GetString(fieldId int) (string, error) {
 	return string(bs), nil
 }
 
+func (fvm FieldValueMap) GetStringAndTrim(fieldId int) (string, error) {
+	str, err := fvm.GetString(fieldId)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimRight(str, " "), nil
+}
+
 func (fvm FieldValueMap) SetBCD(fieldId int, value string) error {
 	if len(value)%2 != 0 {
 		value = "0" + value
+	}
+	matched, _ := regexp.Match(`^[0-9]+$`, []byte(value))
+	if matched {
+		return ErrBCD
 	}
 	bs, err := hex.DecodeString(value)
 	if err != nil {
@@ -410,14 +432,14 @@ func unpack(data *bytes.Buffer) (*Head, FieldValueMap, error) {
 	if err != nil {
 		return retErr(err)
 	}
-	fieldIndexs := getBitMapArray(bitmap)
+	fieldIndexs := getBitmapIndex(bitmap)
 	if len(fieldIndexs) > 0 && fieldIndexs[0] == 1 {
 		bitmap, err = getBytesSlice(8, data)
 		if err != nil {
 			return retErr(err)
 		}
 		fieldIndexs = fieldIndexs[1:]
-		for _, index := range getBitMapArray(bitmap) {
+		for _, index := range getBitmapIndex(bitmap) {
 			fieldIndexs = append(fieldIndexs, 64+index)
 		}
 	}
@@ -445,12 +467,33 @@ func pack(head *Head, fvm FieldValueMap, buf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
-	keys := []int{}
+	err = head.AppHead.to(buf)
+	if err != nil {
+		return err
+	}
+	var bmf1, bmf2, keys []int
 
 	for k := range fvm {
 		keys = append(keys, k)
+		if k > 64 {
+			bmf2 = append(bmf2, k-64)
+		} else {
+			bmf1 = append(bmf1, k)
+		}
 	}
 	sort.Ints(keys)
+
+	_, err = buf.Write(getBitmap(bmf1))
+	if err != nil {
+		return err
+	}
+
+	if len(bmf2) > 0 {
+		_, err = buf.Write(getBitmap(bmf2))
+		if err != nil {
+			return err
+		}
+	}
 
 	for _, k := range keys {
 		if fpf, ok := fieldPackFuncMap[k]; ok {
@@ -462,4 +505,5 @@ func pack(head *Head, fvm FieldValueMap, buf *bytes.Buffer) error {
 			return ErrFieldPackFuncNotExist
 		}
 	}
+	return nil
 }
