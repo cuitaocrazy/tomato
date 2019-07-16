@@ -18,6 +18,19 @@ function getGoType(type) {
       throw new Error(type)
   }
 }
+
+function getTypeFlag(type) {
+  switch (type) {
+    case 'num':
+      return { isNum: true }
+    case 'char':
+      return { isChar: true }
+    case 'byte':
+      return { isByte: true }
+    default:
+      throw new Error(type)
+  }
+}
 function getType(rawType) {
   const type = rawType.replace(/^[lL]*/, '')
   const varLen = rawType.length - type.length
@@ -25,21 +38,34 @@ function getType(rawType) {
     return {
       type: getGoType(type),
       isFix: true,
+      ...getTypeFlag(type),
     }
   } else {
     return {
       type: getGoType(type),
-      isFix: false,
       varLenByteCount: Math.ceil(varLen / 2),
-      isFix: varLen == 0,
+      isFix: false,
+      ...getTypeFlag(type),
     }
   }
 }
 
+function getByteLength(type, length) {
+  const t = type.replace(/^[lL]*/, '')
+  switch (t) {
+    case 'num':
+      return Math.ceil(length / 2)
+    case 'char':
+    case 'byte':
+      return length
+    default:
+      throw new Error(type)
+  }
+}
 convertObj.fields = obj.fields.map(f => ({
   id: f.id,
   name: camelcase(f.name, { pascalCase: true }),
-  length: f.length,
+  length: getByteLength(f.type, f.length),
   description: f.description,
   ...getType(f.type),
 }))
@@ -47,3 +73,5 @@ convertObj.fields = obj.fields.map(f => ({
 const template = handlebars.compile(fs.readFileSync('./templates/my.handlebars.go').toString())
 
 fs.writeFileSync('./a.go', template(convertObj))
+
+console.log(convertObj)

@@ -6,20 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 )
 
 //ErrLenNotMeet  长度错误
-var ErrLenNotMeet = errors.New("Length does not meet the definition")
+// var ErrLenNotMeet = errors.New("Length does not meet the definition")
 
 //ErrFieldUnpackFuncNotExist 字段解包函数不存在
 var ErrFieldUnpackFuncNotExist = errors.New("field unpack function not exist")
+var ErrFieldPackFuncNotExist = errors.New("field pack function not exist")
 
 //ErrBCD bcd错误
 var ErrBCD = errors.New("BCD error")
 
 var ErrValueTooLong = errors.New("value too long")
 var ErrValueTooSmall = errors.New("value too small")
+var ErrFieldNotFound = errors.New("field not found")
+var ErrPackDataTooSmall = errors.New("package data too small")
 
 // #region unpack
 func getBCD(b byte) (int, error) {
@@ -52,26 +56,45 @@ func getBytesBCD(data []byte) (int, error) {
 	return bcd, nil
 }
 
-func getBytesSlice(length int, data []byte) ([]byte, []byte, error) {
-	if len(data) < length {
-		return nil, nil, ErrLenNotMeet
+func getBytesSlice(length int, data *bytes.Buffer) ([]byte, error) {
+	ret := make([]byte, length)
+	n, err := data.Read(ret)
+
+	if err != nil {
+		return nil, err
 	}
-	return data[:length], data[length:], nil
+
+	if n < length {
+		return nil, ErrValueTooSmall
+	}
+
+	return ret, nil
 }
 
-func unpackVarLenFiled(lenType int, data []byte) ([]byte, []byte, error) {
-	rawLen, newData, err := getBytesSlice(lenType/2+lenType%2, data)
-	fieldLength, err := getBytesBCD(rawLen)
+func unpackVarLenFiled(lenType int, maxLen int, data *bytes.Buffer) ([]byte, error) {
+	rawLen, err := getBytesSlice(lenType/2+lenType%2, data)
+
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return getBytesSlice(fieldLength, newData)
+
+	fieldLength, err := getBytesBCD(rawLen)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if fieldLength > maxLen {
+		return nil, ErrValueTooLong
+	}
+
+	return getBytesSlice(fieldLength, data)
 }
 
 // #endregion
 
 // #region pack
-func packBCD(byteLen int, data []byte, buf bytes.Buffer) error {
+func packBCD(byteLen int, data []byte, buf *bytes.Buffer) error {
 	if len(data) > byteLen {
 		return ErrValueTooLong
 	}
@@ -86,7 +109,7 @@ func packBCD(byteLen int, data []byte, buf bytes.Buffer) error {
 	return nil
 }
 
-func packBytes(byteLen int, data []byte, buf bytes.Buffer) error {
+func packBytes(byteLen int, data []byte, buf *bytes.Buffer) error {
 	if len(data) > byteLen {
 		return ErrValueTooLong
 	}
@@ -99,7 +122,7 @@ func packBytes(byteLen int, data []byte, buf bytes.Buffer) error {
 	return nil
 }
 
-func packString(byteLen int, data []byte, buf bytes.Buffer) error {
+func packString(byteLen int, data []byte, buf *bytes.Buffer) error {
 	if len(data) > byteLen {
 		return ErrValueTooLong
 	}
@@ -114,7 +137,7 @@ func packString(byteLen int, data []byte, buf bytes.Buffer) error {
 	return nil
 }
 
-func packVarLenField(lenSize int, maxLen int, data []byte, buf bytes.Buffer) error {
+func packVarLenField(lenSize int, maxLen int, data []byte, buf *bytes.Buffer) error {
 	if len(data) > maxLen {
 		return ErrValueTooLong
 	}
@@ -145,13 +168,15 @@ func getBitMapArray(bitmap []byte) (fieldIndex []int) {
 	return
 }
 
-type fieldUnpackFunc func([]byte) ([]byte, []byte, error)
+// 解包函数
+type fieldUnpackFunc func(*bytes.Buffer) ([]byte, error)
 
-type setFieldValueFunc func([]byte) error
+// 打包函数
+type fieldPackFunc func([]byte, *bytes.Buffer) error
+
+// #region FieldValueMap
+// FieldValueMap 基础的域值映射字典
 type FieldValueMap map[int][]byte
-
-var setFieldValueFuncMap map[int]setFieldValueFunc
-var ErrFieldNotFound = errors.New("field not found")
 
 func (fvm FieldValueMap) Exist(fieldId int) bool {
 	_, ok := fvm[fieldId]
@@ -231,32 +256,165 @@ func (fvm FieldValueMap) SetString(fieldId int, value string) error {
 	return nil
 }
 
-var fieldUnpackFuncMap = make(map[int]fieldUnpackFunc)
+// #endregion
 
-func init() {
-	// {{#fields}}
-	// {{#if isFix}}
-	// 	fieldUnpackFuncMap[{{id}}] = func(data []byte) ([]byte, []byte, error) {
-	// 		return getBytesSlice({{length}}, data)
-	// 	}
-	// {{else}}
-	// 	fieldUnpackFuncMap[{{id}}] = func(data []byte) ([]byte, []byte, error) {
-	// 		return unpackVarLenFiled({{varLenByteCount}}, data)
-	// 	}
-	// {{/if}}
-	// {{/fields}}
+var fieldUnpackFuncMap = map[int]fieldUnpackFunc{}
+var fieldPackFuncMap = map[int]fieldPackFunc{}
+
+// 无奈的工具
+func tRetErr(fn func([]byte) (int, error), bs ...[]byte) error {
+	for _, b := range bs {
+		_, err := fn(b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func tWrite(buf *bytes.Buffer, bs ...[]byte) error {
+	return tRetErr(buf.Write, bs...)
 }
 
-func unpack(data []byte) (FieldValueMap, error) {
-	bitmap, data, err := getBytesSlice(8, data)
+func tRead(buf *bytes.Buffer, bs ...[]byte) error {
+	return tRetErr(buf.Read, bs...)
+}
+
+type TPDU struct {
+	ID   byte
+	Src  [2]byte
+	Desc [2]byte
+}
+
+func (tpdu *TPDU) fill(buf *bytes.Buffer) error {
+	id, err := buf.ReadByte()
 	if err != nil {
-		return nil, err
+		return err
+	}
+	tpdu.ID = id
+	return tRead(buf, tpdu.Src[:], tpdu.Desc[:])
+}
+
+func (tpdu *TPDU) to(buf *bytes.Buffer) error {
+	err := buf.WriteByte(tpdu.ID)
+	if err != nil {
+		return err
+	}
+	return tWrite(buf, tpdu.Src[:], tpdu.Desc[:])
+}
+
+var lriFlag = []byte{0x4c, 0x52, 0x49, 0x00, 0x1c}
+
+type LRI struct {
+	Flag [5]byte
+	ANI  [8]byte
+	DNIS [8]byte
+	LRI  [12]byte
+}
+
+func (lri *LRI) fill(buf *bytes.Buffer) error {
+	return tRead(buf, lri.Flag[:], lri.ANI[:], lri.DNIS[:], lri.LRI[:])
+}
+
+func (lri *LRI) to(buf *bytes.Buffer) error {
+	return tWrite(buf, lri.Flag[:], lri.ANI[:], lri.DNIS[:], lri.LRI[:])
+}
+
+type AppHead struct {
+	Version [2]byte
+	MTI     [2]byte
+}
+
+func (ah *AppHead) fill(buf *bytes.Buffer) error {
+	return tRead(buf, ah.Version[:], ah.MTI[:])
+}
+
+func (ah *AppHead) to(buf *bytes.Buffer) error {
+	return tWrite(buf, ah.Version[:], ah.MTI[:])
+}
+
+type Head struct {
+	TPDU    *TPDU
+	LRI     *LRI
+	AppHead *AppHead
+}
+
+func init() {
+{{#fields}}
+{{#if isFix}}
+	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
+		return getBytesSlice({{length}}, data)
+	}
+{{#if isNum}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packBCD({{length}}, data, buf)
+	}
+{{/if}}
+{{#if isByte}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packBytes({{length}}, data, buf)
+	}
+{{/if}}
+{{#if isChar}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packString({{length}}, data, buf)
+	}
+{{/if}}
+{{else}}
+	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
+		return unpackVarLenFiled({{varLenByteCount}}, {{length}}, data)
+	}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packVarLenField({{varLenByteCount}}, {{length}}, data, buf)
+	}
+{{/if}}
+{{/fields}}
+}
+
+func unpack(data *bytes.Buffer) (*Head, FieldValueMap, error) {
+	// 无奈
+	retErr := func(err error) (*Head, FieldValueMap, error) {
+		return nil, nil, err
+	}
+
+	if data.Len() < 20 {
+		return retErr(ErrPackDataTooSmall)
+	}
+
+	// #region 读取头
+	head := &Head{}
+	var tpdu TPDU
+	err := tpdu.fill(data)
+	if err != nil {
+		return retErr(err)
+	}
+	head.TPDU = &tpdu
+
+	if bytes.Equal(data.Bytes()[:5], lriFlag) {
+		var lri LRI
+		err = lri.fill(data)
+		if err != nil {
+			return retErr(err)
+		}
+		head.LRI = &lri
+	}
+
+	var appHead AppHead
+	err = appHead.fill(data)
+	if err != nil {
+		return retErr(err)
+	}
+	head.AppHead = &appHead
+	// #endregion
+
+	bitmap, err := getBytesSlice(8, data)
+	if err != nil {
+		return retErr(err)
 	}
 	fieldIndexs := getBitMapArray(bitmap)
 	if len(fieldIndexs) > 0 && fieldIndexs[0] == 1 {
-		bitmap, data, err = getBytesSlice(8, data)
+		bitmap, err = getBytesSlice(8, data)
 		if err != nil {
-			return nil, err
+			return retErr(err)
 		}
 		fieldIndexs = fieldIndexs[1:]
 		for _, index := range getBitMapArray(bitmap) {
@@ -264,20 +422,44 @@ func unpack(data []byte) (FieldValueMap, error) {
 		}
 	}
 
-	fvmap := map[int][]byte{}
+	fvmap := FieldValueMap{}
 
 	for _, fi := range fieldIndexs {
 		if fuf, ok := fieldUnpackFuncMap[fi]; ok {
 			var fv []byte
-			fv, data, err = fuf(data)
+			fv, err = fuf(data)
 			if err != nil {
-				return nil, err
+				return retErr(err)
 			}
 			fvmap[fi] = fv
 		} else {
-			return nil, ErrFieldUnpackFuncNotExist
+			return retErr(ErrFieldUnpackFuncNotExist)
 		}
 	}
 
-	return fvmap, nil
+	return head, fvmap, nil
+}
+
+func pack(head *Head, fvm FieldValueMap, buf *bytes.Buffer) error {
+	err := head.TPDU.to(buf)
+	if err != nil {
+		return err
+	}
+	keys := []int{}
+
+	for k := range fvm {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	for _, k := range keys {
+		if fpf, ok := fieldPackFuncMap[k]; ok {
+			err = fpf(fvm[k], buf)
+			if err != nil {
+				return err
+			}
+		} else {
+			return ErrFieldPackFuncNotExist
+		}
+	}
 }
