@@ -1,0 +1,10 @@
+package {{packageName}}
+
+{{#trans}}
+{{#with req}}
+{{> modelRead}}
+{{/with}}
+{{#with res}}
+{{> modelWrite}}
+{{/with}}
+{{/trans}}

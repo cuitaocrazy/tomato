@@ -11,14 +11,16 @@ import (
 	"strings"
 )
 
-//ErrLenNotMeet  长度错误
+// ErrLenNotMeet  长度错误
 // var ErrLenNotMeet = errors.New("Length does not meet the definition")
 
-//ErrFieldUnpackFuncNotExist 字段解包函数不存在
+// ErrFieldUnpackFuncNotExist 字段解包函数不存在
 var ErrFieldUnpackFuncNotExist = errors.New("field unpack function not exist")
+
+// ErrFieldPackFuncNotExist 字段打包函数不存在
 var ErrFieldPackFuncNotExist = errors.New("field pack function not exist")
 
-//ErrBCD bcd错误
+// ErrBCD bcd错误
 var ErrBCD = errors.New("BCD error")
 
 // ErrValueTooLong 值的长度过长
@@ -32,6 +34,9 @@ var ErrFieldNotFound = errors.New("field not found")
 
 // ErrPackDataTooSmall 报数据过短
 var ErrPackDataTooSmall = errors.New("package data too small")
+
+var fieldUnpackFuncMap = map[int]fieldUnpackFunc{}
+var fieldPackFuncMap = map[int]fieldPackFunc{}
 
 // #region unpack
 func getBCD(b byte) (int, error) {
@@ -184,16 +189,19 @@ type fieldUnpackFunc func(*bytes.Buffer) ([]byte, error)
 type fieldPackFunc func([]byte, *bytes.Buffer) error
 
 // #region FieldValueMap
+
 // FieldValueMap 基础的域值映射字典
 type FieldValueMap map[int][]byte
 
-func (fvm FieldValueMap) Exist(fieldId int) bool {
-	_, ok := fvm[fieldId]
+// Exist 域是否存在
+func (fvm FieldValueMap) Exist(fieldID int) bool {
+	_, ok := fvm[fieldID]
 	return ok
 }
 
-func (fvm FieldValueMap) GetBCD(fieldId int) (string, error) {
-	if v, ok := fvm[fieldId]; ok {
+// GetBCD 获取BCD
+func (fvm FieldValueMap) GetBCD(fieldID int) (string, error) {
+	if v, ok := fvm[fieldID]; ok {
 		buf := bytes.Buffer{}
 		for _, b := range v {
 			bcd, err := getBCD(b)
@@ -211,8 +219,9 @@ func (fvm FieldValueMap) GetBCD(fieldId int) (string, error) {
 	return "", ErrFieldNotFound
 }
 
-func (fvm FieldValueMap) GetBCDAndTrimPadding(fieldId int) (string, error) {
-	str, err := fvm.GetBCD(fieldId)
+// GetBCDAndTrimPadding 获取BCD取出追加的'0'字符串
+func (fvm FieldValueMap) GetBCDAndTrimPadding(fieldID int) (string, error) {
+	str, err := fvm.GetBCD(fieldID)
 
 	if err != nil {
 		return "", err
@@ -226,15 +235,17 @@ func (fvm FieldValueMap) GetBCDAndTrimPadding(fieldId int) (string, error) {
 	return str, nil
 }
 
-func (fvm FieldValueMap) GetBytes(fieldId int) ([]byte, error) {
-	if v, ok := fvm[fieldId]; ok {
+// GetBytes 获取Bytes
+func (fvm FieldValueMap) GetBytes(fieldID int) ([]byte, error) {
+	if v, ok := fvm[fieldID]; ok {
 		return v, nil
 	}
 	return nil, ErrFieldNotFound
 }
 
-func (fvm FieldValueMap) GetString(fieldId int) (string, error) {
-	bs, err := fvm.GetBytes(fieldId)
+// GetString 获取String
+func (fvm FieldValueMap) GetString(fieldID int) (string, error) {
+	bs, err := fvm.GetBytes(fieldID)
 	if err != nil {
 		return "", err
 	}
@@ -242,8 +253,9 @@ func (fvm FieldValueMap) GetString(fieldId int) (string, error) {
 	return string(bs), nil
 }
 
-func (fvm FieldValueMap) GetStringAndTrim(fieldId int) (string, error) {
-	str, err := fvm.GetString(fieldId)
+// GetStringAndTrim 获取String并且Trim追加的空格
+func (fvm FieldValueMap) GetStringAndTrim(fieldID int) (string, error) {
+	str, err := fvm.GetString(fieldID)
 	if err != nil {
 		return "", err
 	}
@@ -251,7 +263,8 @@ func (fvm FieldValueMap) GetStringAndTrim(fieldId int) (string, error) {
 	return strings.TrimRight(str, " "), nil
 }
 
-func (fvm FieldValueMap) SetBCD(fieldId int, value string) error {
+// SetBCD 设置BCD
+func (fvm FieldValueMap) SetBCD(fieldID int, value string) error {
 	if len(value)%2 != 0 {
 		value = "0" + value
 	}
@@ -264,24 +277,23 @@ func (fvm FieldValueMap) SetBCD(fieldId int, value string) error {
 		return err
 	}
 
-	fvm[fieldId] = bs
+	fvm[fieldID] = bs
 	return nil
 }
 
-func (fvm FieldValueMap) SetBytes(fieldId int, value []byte) error {
-	fvm[fieldId] = value
+// SetBytes 设置Bytes
+func (fvm FieldValueMap) SetBytes(fieldID int, value []byte) error {
+	fvm[fieldID] = value
 	return nil
 }
 
-func (fvm FieldValueMap) SetString(fieldId int, value string) error {
-	fvm[fieldId] = []byte(value)
+// SetString 设置字符串
+func (fvm FieldValueMap) SetString(fieldID int, value string) error {
+	fvm[fieldID] = []byte(value)
 	return nil
 }
 
 // #endregion
-
-var fieldUnpackFuncMap = map[int]fieldUnpackFunc{}
-var fieldPackFuncMap = map[int]fieldPackFunc{}
 
 // 无奈的工具
 func tRetErr(fn func([]byte) (int, error), bs ...[]byte) error {
@@ -301,6 +313,7 @@ func tRead(buf *bytes.Buffer, bs ...[]byte) error {
 	return tRetErr(buf.Read, bs...)
 }
 
+// TPDU TPDU
 type TPDU struct {
 	ID   byte
 	Src  [2]byte
@@ -326,6 +339,7 @@ func (tpdu *TPDU) to(buf *bytes.Buffer) error {
 
 var lriFlag = []byte{0x4c, 0x52, 0x49, 0x00, 0x1c}
 
+// LRI LRI
 type LRI struct {
 	Flag [5]byte
 	ANI  [8]byte
@@ -341,6 +355,7 @@ func (lri *LRI) to(buf *bytes.Buffer) error {
 	return tWrite(buf, lri.Flag[:], lri.ANI[:], lri.DNIS[:], lri.LRI[:])
 }
 
+// AppHead AppHead
 type AppHead struct {
 	Version [2]byte
 	MTI     [2]byte
@@ -354,42 +369,11 @@ func (ah *AppHead) to(buf *bytes.Buffer) error {
 	return tWrite(buf, ah.Version[:], ah.MTI[:])
 }
 
+// Head Head
 type Head struct {
 	TPDU    *TPDU
 	LRI     *LRI
 	AppHead *AppHead
-}
-
-func init() {
-{{#fields}}
-{{#if isFix}}
-	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
-		return getBytesSlice({{length}}, data)
-	}
-{{#if isNum}}
-	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
-		return packBCD({{length}}, data, buf)
-	}
-{{/if}}
-{{#if isByte}}
-	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
-		return packBytes({{length}}, data, buf)
-	}
-{{/if}}
-{{#if isChar}}
-	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
-		return packString({{length}}, data, buf)
-	}
-{{/if}}
-{{else}}
-	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
-		return unpackVarLenFiled({{varLenByteCount}}, {{length}}, data)
-	}
-	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
-		return packVarLenField({{varLenByteCount}}, {{length}}, data, buf)
-	}
-{{/if}}
-{{/fields}}
 }
 
 func unpack(data *bytes.Buffer) (*Head, FieldValueMap, error) {

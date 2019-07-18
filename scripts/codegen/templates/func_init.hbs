@@ -1,0 +1,31 @@
+func init() {
+{{#fields}}
+{{#if isFix}}
+	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
+		return getBytesSlice({{length}}, data)
+	}
+{{#if isNum}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packBCD({{length}}, data, buf)
+	}
+{{/if}}
+{{#if isByte}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packBytes({{length}}, data, buf)
+	}
+{{/if}}
+{{#if isChar}}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packString({{length}}, data, buf)
+	}
+{{/if}}
+{{else}}
+	fieldUnpackFuncMap[{{id}}] = func(data *bytes.Buffer) ([]byte, error) {
+		return unpackVarLenFiled({{varLenByteCount}}, {{length}}, data)
+	}
+	fieldPackFuncMap[{{id}}] = func(data []byte, buf *bytes.Buffer) error {
+		return packVarLenField({{varLenByteCount}}, {{length}}, data, buf)
+	}
+{{/if}}
+{{/fields}}
+}

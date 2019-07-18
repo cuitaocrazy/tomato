@@ -1,0 +1,38 @@
+{{#* inline "setBCD"}}
+Set{{name}} (value string) error {
+  return fvm.SetBCD({{id}}, value)
+}
+{{/inline}}
+{{#* inline "setString"}}
+Set{{name}} (value string) error {
+  return fvm.SetString({{id}}, value)
+}
+{{/inline}}
+{{#* inline "setBytes"}}
+Set{{name}} (value []byte) error {
+  return fvm.SetBytes({{id}}, value)
+}
+{{/inline}}
+{{#* inline "setFunc"}}
+// Set{{name}} {{description}}
+{{#if isNum}}
+func (fvm *{{className}}) {{> setBCD}}
+{{/if}}
+{{#if isChar}}
+func (fvm *{{className}}) {{> setString}}
+{{/if}}
+{{#if isByte}}
+func (fvm *{{className}}) {{> setBytes}}
+{{/if}}
+{{/inline}}
+// {{className}} {{description}}
+type {{className}} struct {
+  FieldValueMap
+}
+
+{{#requiredFields}}
+{{> setFunc className=../className}}
+{{/requiredFields}}
+{{#conditionFields}}
+{{> setFunc className=../className}}
+{{/conditionFields}}

@@ -1,0 +1,38 @@
+{{#* inline "getBCD"}}
+Get{{name}} () (string, error) {
+  return fvm.GetBCD({{id}})
+}
+{{/inline}}
+{{#* inline "getString"}}
+Get{{name}} () (string, error) {
+  return fvm.GetString({{id}})
+}
+{{/inline}}
+{{#* inline "getBytes"}}
+Get{{name}} () ([]byte, error) {
+  return fvm.GetBytes({{id}})
+}
+{{/inline}}
+{{#* inline "getFunc"}}
+// Get{{name}} {{description}}
+{{#if isNum}}
+func (fvm *{{className}}) {{> getBCD}}
+{{/if}}
+{{#if isChar}}
+func (fvm *{{className}}) {{> getString}}
+{{/if}}
+{{#if isByte}}
+func (fvm *{{className}}) {{> getBytes}}
+{{/if}}
+{{/inline}}
+// {{className}} {{description}}
+type {{className}} struct {
+  FieldValueMap
+}
+
+{{#requiredFields}}
+{{> getFunc className=../className}}
+{{/requiredFields}}
+{{#conditionFields}}
+{{> getFunc className=../className}}
+{{/conditionFields}}

@@ -1,3 +1,5 @@
+package: codegen
+
 fields:
   - id: 2
     type: llnum
